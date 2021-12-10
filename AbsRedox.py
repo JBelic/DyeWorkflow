@@ -82,7 +82,6 @@ def SinglePoint(xc_fun=['LibXC', 'CAM-B3LYP'], basis='DZP', charge=0, tddft=Fals
     settings = Settings()
     
     settings.runscript.pre  = module_load
-    #settings.keep = 'all'
 
     settings.input.ams.task           = 'SinglePoint'
     settings.input.adf.basis.type     = basis
@@ -184,7 +183,6 @@ def make_csv(file_name, header, data):
             x = [n] + data[n]
             writer.writerow(x)
 
-cvs
 
 def export_coords(geometries, path):
     """
@@ -236,7 +234,7 @@ def select_opt_mol(results, prefix, path):
     success_jobs = [job for job in results if job.ok()]
     unsuccess_jobs = [job for job in results if job not in success_jobs]
 
-    opt_mol = {res.name.replace(prefix,'') : res.get_main_molecule() for res in success_jobs}
+    opt_mol = {res.name.replace(prefix,'').replace('.002','') : res.get_main_molecule() for res in success_jobs}
     export_coords(opt_mol, os.path.join(path))
 
     return success_jobs, unsuccess_jobs
@@ -310,8 +308,6 @@ def optimization(mols, prefix, settings, path):
             export_coords(nonopt_mol, os.path.join(path, non_preopt))
 
 
-conv
-
 ###############################################################################################################
 ####################################### MAIN CALCULATIONS  ####################################################
 ###############################################################################################################
@@ -347,30 +343,34 @@ class TDDFT_jobs(MultiJob):
                     a = {job.name : cd}
                     tddft_CD.update(a)
             else:
-                a = {job.name : False}
+                a = {job.name : []}
                 tddft_CD.update(a)
             
 
             if job.ok():
                 try:
-                    #NumOfExc        = job.results.readrkf('All excitations','nr excitations','adf')
                     ExcEnergies  = Units.convert(job.results.readrkf('Excitations SS A', 'excenergies','adf'), 'au', 'eV')
-                    OscilatorStr = job.results.readrkf('Excitations SS A', 'oscillator strengths','adf')
+                    OscillatorStr = job.results.readrkf('Excitations SS A', 'oscillator strengths','adf')
                     
-                    i = {job.name : ExcEnergies + OscilatorStr}
+                    OutExc, OutOsc = [0]*10, [0]*10
+                    OutExc[:len(ExcEnergies)]   = ExcEnergies
+                    OutOsc[:len(OscillatorStr)]  = OscillatorStr
+
+                    i = {job.name : OutExc + OutOsc}
                     data.update(i)
                 except: 
-                    i = {job.name : False}
+                    i = {job.name : []}
                     data.update(i)
             else:
-                i = {job.name : False}
+                i = {job.name : []}
                 data.update(i)
         
 
         header = ['Name'] + list(range(1, 11)) + list(range(1, 11))
+        print (header, data)
         make_csv(self.name, header, data)
 
-        header_cd = ['Name', 'TermStatus', 'NAtoms', 'Etime']
+        header_cd = ['Name', 'TermStatus', 'NAtoms']#, 'Etime']
         make_csv('td_comput_details', header_cd, tddft_CD)
 
 def getExcitations(dirname, molecules, settings):
@@ -434,10 +434,10 @@ class ADFwithCOSMO(MultiJob):
             if job.ok():
                 try:
                     numA        = job.results.readrkf('Molecule','nAtoms')
-                    #Etime       = job.results.readrkf('General', 'ElapsedTime')
+                    Etime       = job.results.readrkf('General', 'ElapsedTime')
                     Tstatus     = job.results.readrkf('General', 'termination status')
                     
-                    cd = [Tstatus] + [numA] #+ [Etime]
+                    cd = [Tstatus] + [numA] + [Etime]
                     a = {job.name : cd}
                     comp_data.update(a)
                 except:
@@ -468,22 +468,22 @@ class ADFwithCOSMO(MultiJob):
                         i = {job.name: [Units.convert( float(extracted["G solute"][1]), 'kcal/mol', 'eV')]} 
                         data.update(i)
                     else: 
-                        i = {job.name : False}
+                        i = {job.name : []}
                         data.update(i)
 
                 except:
     
-                    i = {job.name : False}
+                    i = {job.name : []}
                     data.update(i)
             else:
-                i = {job.name : False}
+                i = {job.name : []}
                 data.update(i)
 
 
         header = ['Name', 'G_'+self.name]
         make_csv(self.name, header, data)
 
-        header_cd = ['Name', 'TermStatus', 'NAtoms'] #+ [Etime]]
+        header_cd = ['Name', 'TermStatus', 'NAtoms' + 'Etime']
         make_csv('comput_details', header_cd, comp_data)
 
 
